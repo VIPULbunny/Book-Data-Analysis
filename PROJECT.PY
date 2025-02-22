@@ -80,3 +80,6 @@ df[df.title.duplicated()]
 
 # Filter DataFrame to find details about a specific book title
 df[df['title'] == "Jaguar Development with PowerBuilder 7"]
+
+#Arrange all id in a sequence of rows
+df['_id'] = np.arange(0,431)
