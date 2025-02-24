@@ -6,80 +6,85 @@ import seaborn as sns
 import re
 import requests
 
-# URL containing the book dataset in JSON format
+# Fetch dataset from the given URL
 url = "https://raw.githubusercontent.com/ozlerhakan/mongodb-json-files/master/datasets/books.json"
 
-# Optional request check (commented out)
-# req = requests.get(url)
-# print(req)
-
-# Load JSON data into a DataFrame
+# Load the dataset from the JSON URL into a Pandas DataFrame
 df = pd.read_json(url, lines=True)
 
-# Display DataFrame info and sample data for initial inspection
-# print(df.info())
-# print(df['_id'][398])  # Check the last ID
-# print(df['categories'][])  # Incorrect syntax - needs fixing if required
-
-# Function to clean 'publishedDate' by removing unwanted characters
+# Function to clean and format the published date
 def clean_date(value):
-    # Remove pattern like {'date': 'YYYY-MM-DD'} and unwanted characters
-    return re.sub(r"^{'.*: '|T00:00:.*'}|[|]", " ", value)
+    return re.sub(r"^{'.*: '|-\d\d-\d\d+T00:00:.*'}|[|]", " ", value)
 
-# Apply the cleaning function to the 'publishedDate' column
+# Apply cleaning function to 'publishedDate' column
 df['publishedDate'] = df['publishedDate'].astype(str).apply(clean_date)
 
-# Clean 'authors' column by removing square brackets
+# Clean 'authors' column by removing unnecessary brackets
 df['authors'] = df['authors'].astype(str).str.replace(r"[\[\]]", "", regex=True)
-
-# Display selected columns after cleaning
-print(df[['_id', 'title', 'isbn', 'pageCount', 'publishedDate',
-          'thumbnailUrl', 'shortDescription', 'longDescription',
-          'status', 'authors', 'categories']])
 
 # Check for missing values in the dataset
 df.isnull().sum()
 
-# Display DataFrame structure and data types
-df.info()
-
-# Data Cleaning: Clean the 'isbn' column
-
-# Convert 'isbn' column to string for regex operations
+# Convert ISBN column to string type for further processing
 df['isbn'] = df['isbn'].astype(str)
 
-# Apply regex pattern to remove unwanted letters or symbols in ISBN
-df['isbn'] = df['isbn'].str.replace(r'[a-z]-|[a-z]$', '', regex=True)  # Removes patterns like 'a-e'
+# Clean ISBN values by removing unwanted characters and letters
+df['isbn'] = df['isbn'].str.replace(r'[a-z]- |[a-z]$', '', regex=True)
 
-# Check the last few cleaned ISBN values
-df.isbn.tail()
-
-# Display the full DataFrame
-df
-
-# Check rows where ISBN is missing
-df[df.isbn.isna() == True]
-
-# Print ISBN values in a specific range
-print(df['isbn'][19:25])
-
-# Drop the 'isbn' column if not required
+# Drop the 'isbn' column as it's not needed for analysis
 df.drop('isbn', axis=1, inplace=True)
 
-# Display the DataFrame after dropping the 'isbn' column
-print(df)
+# Remove duplicate book titles from the dataset
+df = df.drop_duplicates(subset=['title'])
 
-# Get unique book titles
-df.title.unique()
+# Assign unique numeric IDs to books
+df['_id'] = np.arange(len(df))
 
-# Check for duplicated titles (returns a Series of True/False)
-df.title.duplicated()
+# Replace missing values in 'pageCount' column with the mean page count
+df['pageCount'].replace(0, df['pageCount'].mean().round(0), inplace=True)
 
-# Display rows with duplicated titles
-df[df.title.duplicated()]
+# Rename 'publishedDate' column to 'PublishYear'
+df.rename(columns={'publishedDate': 'PublishYear'}, inplace=True)
 
-# Filter DataFrame to find details about a specific book title
-df[df['title'] == "Jaguar Development with PowerBuilder 7"]
+# Replace missing values in 'PublishYear' column with '0'
+df['PublishYear'].replace('nan', '0', inplace=True)
 
-#Arrange all id in a sequence of rows
-df['_id'] = np.arange(0,431)
+# Convert 'PublishYear' column to integer type
+df['PublishYear'] = df['PublishYear'].astype(int)
+
+# Drop unnecessary columns that are not required for visualization
+df.drop(['thumbnailUrl', 'shortDescription', 'longDescription', 'authors', '_id', 'categories'], axis=1, inplace=True)
+
+# Replace 'MEAP' status with 'Unpublished' for consistency
+df['status'].replace('MEAP', 'Unpublished', inplace=True)
+
+# Visualize the count of books in each status category
+plt.figure(figsize=(8, 5))
+df['status'].value_counts().plot(kind='bar', color=['blue', 'green'])
+plt.title('Book Status Distribution')
+plt.xlabel('Status')
+plt.ylabel('Count')
+plt.grid()
+plt.show()
+
+# Plot a histogram of publication years
+plt.figure(figsize=(8, 5))
+df['PublishYear'].value_counts().plot(kind='hist', bins=5, color='purple', alpha=0.7)
+plt.title('Publication Year Distribution')
+plt.xlabel('Year')
+plt.ylabel('Frequency')
+plt.grid()
+plt.show()
+
+# Identify top 10 books with the highest page count
+top_books = df.sort_values('pageCount', ascending=False).head(10)
+
+# Plot the top 10 books by page count
+plt.figure(figsize=(10, 5))
+plt.bar(top_books['title'], top_books['pageCount'], color='orange')
+plt.xlabel('Book Title')
+plt.ylabel('Page Count')
+plt.title('Top 10 Books with the Highest Page Count')
+plt.xticks(rotation=90)
+plt.grid()
+plt.show()
